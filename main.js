@@ -1,13 +1,11 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-var back;
-
-document.addEventListener("DOMContentLoaded", function() {
-    back = new grid();
-    back.addNode(new node(100, 100, '#34e8eb', 'poop green', 0, 1));
-    scale(canvas, back);
-    window.addEventListener('resize', scale.bind(null, canvas, back));
-    canvas.addEventListener('mousedown', mouseClick);
-    canvas.addEventListener('mousemove', mouseMove);
-    canvas.addEventListener('mouseup', mouseUp);
-});
+var back = new grid();
+back.addNode(new node(100, 100, '#0d7846', 'equation', 0, 3));
+back.addNode(new node(400, 100, '#0d7846', 'quadratic', 3, 2));
+back.addNode(new node(700, 100, '#0d7846', 'result', 2, 0));
+scale(canvas, back);
+window.addEventListener('resize', scale.bind(null, canvas, back));
+canvas.addEventListener('mousedown', mouseClick);
+canvas.addEventListener('mousemove', mouseMove);
+canvas.addEventListener('mouseup', mouseUp);

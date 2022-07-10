@@ -8,12 +8,30 @@ function scale(canvas, grid) {
     grid.draw();
 }
 
+const variableList = ['x', 'y', 'z', 'w'];
+const inputRadius = 7;
+const outputRadius = 7;
+
 class input {
     constructor(x, y, node) {
         this.x = x;
         this.y = y;
         this.node = node;
         this.connectedFrom = null;
+    }
+
+    draw(xoffset, yoffset, index) {
+        ctx.fillStyle = 'white';
+        ctx.font = '16px serif';
+        ctx.fillText(variableList[index], this.x + xoffset-10, this.y + yoffset-10);
+        ctx.beginPath();
+        ctx.arc(this.x + xoffset, this.y + yoffset, inputRadius, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
+    move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
     }
 }
 
@@ -29,7 +47,7 @@ class output {
         if (input.node != this.node && input.connectedFrom == null) {
             this.connectedTo.push(input);
             input.connectedFrom = outputMouse;
-            this.node.grid.draw(canvas);
+            this.node.grid.draw();
         }
     }
 
@@ -40,23 +58,48 @@ class output {
             this.node.grid.draw();
         }
     }
+
+    draw(xoffset, yoffset) {
+        ctx.fillStyle = '#5c5c5c';
+        ctx.beginPath();
+        ctx.arc(this.x + xoffset, this.y + yoffset, outputRadius , 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
+    move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+    }
 }
 
 class textField {
-    constructor(x, y, width, height) {
+    constructor(x, y, width, height, node) {
         this.text = "";
+        this.x = x;
+        this.y = y;
         this.canvasInput = new CanvasInput({
             canvas: document.getElementById('canvas'),
-            fontSize: 20,
+            fontSize: 15,
             fontFamily: 'Serif',
             x: x,
             y: y,
             width: width,
-            height: height
+            height: height,
+            placeHolder: '0',
+            onkeydown: function() {
+                node.grid.draw();
+            }
         });
     }
 
-    draw() {
+    move(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+
+    draw(xoffset, yoffset) {
+        this.canvasInput._x = this.x + xoffset;
+        this.canvasInput._y = this.y + yoffset;
         this.canvasInput.render();
     }
 }
@@ -68,13 +111,45 @@ class grid {
         this.xoffset = 0;
         this.yoffset = 0;
         this.nodes = [];
+        this.firstNodes = [];
     }
 
     draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#202124';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         this.drawLines();
         this.drawNodes();
         this.drawConnections();
+        this.calculate();
+    }
+
+    calculate() {
+        this.calculateFirst();
+        for (var i = 0; i < this.firstNodes.length; i++) {
+            this.firstNodes[i].calculate();
+        }
+    }
+
+    calculateFirst() {
+        var self = this;
+        this.firstNodes = [];
+        this.nodes.forEach(function(node) {
+            self.recurseCalculate(node);
+        });
+    }
+
+    recurseCalculate(node) {
+        var self = this;
+        if(node.emptyInputs() == 0 && this.firstNodes.indexOf(node) == -1) {
+            this.firstNodes.push(node);
+        }
+        if(node.emptyInputs() != 0) {
+            node.inputs.forEach(function(input) {
+                if(input.connectedFrom != null) {
+                    self.recurseCalculate(input.connectedFrom.node);
+                }
+            });
+        }
     }
 
     drawLines() {
@@ -101,7 +176,7 @@ class grid {
     }
 
     drawOutcon(outputMouse, x, y) {
-        ctx.fillStyle = 'black';
+        ctx.strokeStyle = '#f21b2d';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(outputMouse.x + this.xoffset, outputMouse.y + this.yoffset);
@@ -113,12 +188,14 @@ class grid {
         for (var k = 0; k < this.nodes.length; k++) {
             for (var i = 0; i < this.nodes[k].outputs.length; i++) {
                 for (var j = 0; j < this.nodes[k].outputs[i].connectedTo.length; j++) {
-                    ctx.strokeStyle = 'green';
+                    ctx.strokeStyle = '#0099ff';
                     ctx.lineWidth = 3;
                     ctx.beginPath();
                     ctx.moveTo(this.nodes[k].outputs[i].x + this.xoffset, this.nodes[k].outputs[i].y + this.yoffset);
                     ctx.lineTo(this.nodes[k].outputs[i].connectedTo[j].x + this.xoffset, this.nodes[k].outputs[i].connectedTo[j].y + this.yoffset);
                     ctx.stroke();
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(this.nodes[k].outs[i], (this.nodes[k].outputs[i].x + 2*this.xoffset + this.nodes[k].outputs[i].connectedTo[j].x)/2, (this.nodes[k].outputs[i].y + 2*this.yoffset + this.nodes[k].outputs[i].connectedTo[j].y)/2);
                 }
             }
         }
@@ -172,7 +249,7 @@ class node {
         this.y = y;
         this.color = color;
         this.xscale = 150;
-        this.yscale = 150;
+        this.yscale = 200;
         this.title = title;
         this.inputs = [];
         this.outputs = [];
@@ -183,12 +260,14 @@ class node {
         this.generateOutputs();
         this.generateTextFields();
         this.grid = _grid;
+        this.ins = [];
+        this.outs = [];
     }
 
     generateInputs() {
         for (var i = 0; i < this.numInput; i++) {
             var x = this.x;
-            var y = this.y + 12 + i * 28;
+            var y = this.y + 48 + i * 40;
             this.inputs.push(new input(x, y, this));
         }
     }
@@ -196,66 +275,94 @@ class node {
     generateOutputs() {
         for (var i = 0; i < this.numOutput; i++) {
             var x = this.x + this.xscale;
-            var y = this.y + 12 + i * 28;
+            var y = this.y + 48 + i * 40;
             this.outputs.push(new output(x, y, this));
         }
     }
 
     generateTextFields() {
         for (var i = 0; i < this.numOutput; i++) {
-            this.textFields.push(new textField(this.x+10, 50, 130, 20));
+            this.textFields.push(new textField(this.x+10, this.y+33+40*i, this.xscale-(14+20), 20, this));
+        }
+    }
+
+    calculate() {
+        for (var i = 0; i < 4; i++) {
+            if (this.ins[i] == undefined) {
+                this.ins[i] = 0;
+            }
+        }
+        for (var i = 0; i < this.outputs.length; i++) {
+            this.outs[i] = nerdamer(this.textFields[i].canvasInput._value, {x: this.ins[0], y: this.ins[1], z: this.ins[2], w: this.ins[3]});
+            for (var j = 0; j < this.outputs[i].connectedTo.length; j++) {
+                var input = this.outputs[i].connectedTo[j];
+                var conIndex = input.node.inputs.indexOf(input);
+                input.node.ins[conIndex] = this.outs[i];
+                input.node.calculate();
+            }
         }
     }
 
     drawInputs(xoffset, yoffset) {
-        for (var i = 0; i < this.inputs.length; i++) {
-            ctx.fillStyle = 'black';
-            ctx.beginPath();
-            ctx.arc(this.x + xoffset, this.y + 12 + i * 28 + yoffset, 7, 0, 2 * Math.PI);
-            ctx.fill();
-        }
+        this.inputs.forEach(function(input, index) {
+            input.draw(xoffset, yoffset, index);
+        });
     }
 
     drawOutputs(xoffset, yoffset) {
-        for (var i = 0; i < this.outputs.length; i++) {
-            ctx.fillStyle = 'black';
-            ctx.beginPath();
-            ctx.arc(this.x + this.xscale + xoffset, this.y + 12 + i * 28 + yoffset, 7, 0, 2 * Math.PI);
-            ctx.fill();
-        }
+        this.outputs.forEach(function(output) {
+            output.draw(xoffset, yoffset);
+        });
     }
 
-    drawTextFields() {
-        for (var i = 0; i < this.textFields.length; i++) {
-            this.textFields[i].draw();
-        }
+    drawTextFields(xoffset, yoffset) {
+        this.textFields.forEach(function(textField) {
+            textField.draw(xoffset, yoffset);
+        });
     }
 
     draw(xoffset, yoffset) {
         ctx.fillStyle = this.color;
         ctx.fillRect(this.x + xoffset, this.y + yoffset, this.xscale, this.yscale);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(this.x + xoffset, this.y + yoffset, this.xscale, 27);
         ctx.fillStyle = 'black';
         ctx.font = '20px serif';
-        ctx.fillText(this.title, this.x + xoffset + 10, this.y + yoffset + 20);
+        ctx.fillText(this.title, this.x + xoffset + 10, this.y + yoffset + 18);
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(this.x + xoffset, this.y + yoffset + 27);
+        ctx.lineTo(this.x + xoffset + this.xscale, this.y + yoffset + 27);
+        ctx.stroke();
         this.drawInputs(xoffset, yoffset);
         this.drawOutputs(xoffset, yoffset);
-        this.drawTextFields();
+        this.drawTextFields(xoffset, yoffset);
     }
 
     move(dx, dy) {
-        for (var i = 0; i < this.inputs.length; i++) {
-            this.inputs[i].x += dx-this.x;
-            this.inputs[i].y += dy-this.y;
-        }
-        for (var i = 0; i < this.outputs.length; i++) {
-            this.outputs[i].x += dx-this.x;
-            this.outputs[i].y += dy-this.y;
-        }
-        for(var i = 0; i < this.textFields.length; i++) {
-            this.textFields[i].x += dx-this.x;
-            this.textFields[i].y += dy-this.y;
-        }
+        var x = dx-this.x;
+        var y = dy-this.y;
+        this.inputs.forEach(function(input) {
+            input.move(x, y);
+        });
+        this.outputs.forEach(function(output) {
+            output.move(x, y);
+        });
+        this.textFields.forEach(function(textField) {
+            textField.move(x, y);
+        });
         this.x = dx;
         this.y = dy;
+    }
+
+    emptyInputs() {
+        var count = 0;
+        this.inputs.forEach(function(input) {
+            if (input.connectedFrom == null) {
+                count++;
+            }
+        });
+        return count;
     }
 }
