@@ -293,7 +293,7 @@ class node {
             }
         }
         for (var i = 0; i < this.outputs.length; i++) {
-            this.outs[i] = nerdamer(this.textFields[i].canvasInput._value, {x: this.ins[0], y: this.ins[1], z: this.ins[2], w: this.ins[3]});
+            this.outs[i] = nerdamer(this.textFields[i].canvasInput._value, {x: this.ins[0], y: this.ins[1], z: this.ins[2], w: this.ins[3]}).evaluate().toString();
             for (var j = 0; j < this.outputs[i].connectedTo.length; j++) {
                 var input = this.outputs[i].connectedTo[j];
                 var conIndex = input.node.inputs.indexOf(input);
